@@ -1,37 +1,41 @@
 <?php
-// Script untuk mengupdate struktur tabel estimasi
-// Menghapus kolom lokasi_tujuan dan menambahkan kolom harga_dimensi_id
+// Script untuk menambahkan kolom 'tipe' ke tabel estimasi
+// dan mengupdate nilai pada data yang sudah ada
 
 require_once 'config/database.php';
 
-$database = new Database();
-$db = $database->getConnection();
+// Fungsi untuk menampilkan pesan
+function showMessage($message, $success = true) {
+    $style = $success ? 'color: green;' : 'color: red;';
+    echo "<p style='$style'>$message</p>";
+}
+
+echo "<h1>Script Update Tabel Estimasi</h1>";
 
 try {
-    // Menambahkan kolom harga_dimensi_id jika belum ada
-    $checkColumn = "SHOW COLUMNS FROM `estimasi` LIKE 'harga_dimensi_id'";
-    $stmt = $db->query($checkColumn);
+    // Koneksi ke database
+    $database = new Database();
+    $db = $database->getConnection();
+    
+    // 1. Cek apakah kolom 'tipe' sudah ada di tabel 'estimasi'
+    $query = "SHOW COLUMNS FROM estimasi LIKE 'tipe'";
+    $stmt = $db->prepare($query);
+    $stmt->execute();
+    
     if ($stmt->rowCount() == 0) {
-        $addColumn = "ALTER TABLE `estimasi` ADD COLUMN `harga_dimensi_id` INT AFTER `jenis_kayu_id`";
-        $db->exec($addColumn);
-        echo "Kolom harga_dimensi_id berhasil ditambahkan.<br>";
+        // Kolom 'tipe' belum ada, tambahkan
+        $query = "ALTER TABLE estimasi ADD COLUMN tipe ENUM('order', 'estimasi') DEFAULT 'estimasi'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        showMessage("Kolom 'tipe' berhasil ditambahkan ke tabel estimasi dengan default 'estimasi'!");
     } else {
-        echo "Kolom harga_dimensi_id sudah ada.<br>";
+        showMessage("Kolom 'tipe' sudah ada di tabel estimasi.");
     }
     
-    // Menghapus kolom lokasi_tujuan jika ada
-    $checkColumn = "SHOW COLUMNS FROM `estimasi` LIKE 'lokasi_tujuan'";
-    $stmt = $db->query($checkColumn);
-    if ($stmt->rowCount() > 0) {
-        $dropColumn = "ALTER TABLE `estimasi` DROP COLUMN `lokasi_tujuan`";
-        $db->exec($dropColumn);
-        echo "Kolom lokasi_tujuan berhasil dihapus.<br>";
-    } else {
-        echo "Kolom lokasi_tujuan tidak ditemukan.<br>";
-    }
+    echo "<hr/>";
+    echo "<p>Update berhasil dilakukan. Silakan kembali ke <a href='admin/dashboard.php'>Dashboard Admin</a>.</p>";
     
-    echo "Update struktur tabel estimasi berhasil.";
 } catch (PDOException $e) {
-    echo "Error: " . $e->getMessage();
+    showMessage("Error: " . $e->getMessage(), false);
 }
 ?> 

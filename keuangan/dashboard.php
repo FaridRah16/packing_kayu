@@ -12,8 +12,10 @@ $query = "SELECT
           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
           SUM(CASE WHEN status = 'diproses' THEN 1 ELSE 0 END) as diproses,
           SUM(CASE WHEN status = 'selesai' THEN 1 ELSE 0 END) as selesai,
+          SUM(CASE WHEN status = 'dibatalkan' THEN 1 ELSE 0 END) as batal,
           SUM(CASE WHEN status = 'selesai' THEN estimasi_biaya ELSE 0 END) as total_pendapatan
-          FROM estimasi";
+          FROM estimasi
+          WHERE (tipe = 'order' OR tipe IS NULL)";
 $stmt = $db->prepare($query);
 $stmt->execute();
 $stats = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -23,6 +25,7 @@ $query = "SELECT e.*, u.username, jk.nama as jenis_kayu_nama
           FROM estimasi e 
           LEFT JOIN users u ON e.user_id = u.id 
           LEFT JOIN jenis_kayu jk ON e.jenis_kayu_id = jk.id 
+          WHERE (e.tipe = 'order' OR e.tipe IS NULL)
           ORDER BY e.created_at DESC 
           LIMIT 10";
 $stmt = $db->prepare($query);
@@ -36,6 +39,7 @@ $query = "SELECT
           SUM(CASE WHEN status = 'selesai' THEN estimasi_biaya ELSE 0 END) as pendapatan
           FROM estimasi 
           WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+          AND (tipe = 'order' OR tipe IS NULL)
           GROUP BY DATE_FORMAT(created_at, '%Y-%m')
           ORDER BY bulan ASC";
 $stmt = $db->prepare($query);
@@ -53,6 +57,30 @@ foreach ($statistik_bulanan as $item) {
     $data_estimasi[] = (int)$item['jumlah_estimasi'];
     $data_pendapatan[] = (int)$item['pendapatan'];
 }
+
+// Data untuk donut chart
+$status_data = [
+    $stats['pending'] ?? 0,
+    $stats['diproses'] ?? 0,
+    $stats['selesai'] ?? 0,
+    $stats['batal'] ?? 0 // Pastikan selalu ada nilai meskipun NULL
+];
+
+// Pastikan semua posisi status dalam array ada nilainya (minimal 0)
+// Ini untuk memastikan chart selalu menampilkan semua status
+$status_labels = ['Pending', 'Diproses', 'Selesai', 'Dibatalkan'];
+$status_colors = [
+    '#f6c23e', // Pending - Kuning
+    '#36b9cc', // Diproses - Biru
+    '#1cc88a', // Selesai - Hijau
+    '#e74a3b'  // Dibatalkan - Merah
+];
+$status_hover_colors = [
+    '#e0ae29', // Pending hover
+    '#2c9faf', // Diproses hover
+    '#17a673', // Selesai hover
+    '#d52a1a'  // Dibatalkan hover
+];
 ?>
 
 <!DOCTYPE html>
@@ -462,31 +490,35 @@ foreach ($statistik_bulanan as $item) {
                         </div>
                     </div>
                 </nav>
-                
-                <!-- Stats cards -->
+
+                <!-- Welcome Banner -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body py-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h4 class="mb-1">Selamat Datang, <?php echo $_SESSION['username']; ?>!</h4>
+                                        <p class="mb-0">Dashboard Staff Keuangan Packing Kayu</p>
+                                    </div>
+                                    <i class="bi bi-clipboard-data display-4 opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistik -->
                 <div class="row">
                     <div class="col-xl-3 col-md-6 mb-4">
                         <div class="card stats-card primary">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Total Estimasi</div>
-                                    <div class="stats-card-value"><?php echo number_format($stats['total_estimasi']); ?></div>
+                                    <div class="stats-card-title">Total Order</div>
+                                    <div class="stats-card-value"><?php echo $stats['total_estimasi']; ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
-                                    <i class="bi bi-clipboard-data stats-card-icon"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-xl-3 col-md-6 mb-4">
-                        <div class="card stats-card success">
-                            <div class="stats-card-body">
-                                <div>
-                                    <div class="stats-card-title">Selesai</div>
-                                    <div class="stats-card-value"><?php echo number_format($stats['selesai']); ?></div>
-                                </div>
-                                <div class="stats-card-icon-container">
-                                    <i class="bi bi-check-circle stats-card-icon"></i>
+                                    <i class="bi bi-clipboard-data-fill stats-card-icon"></i>
                                 </div>
                             </div>
                         </div>
@@ -495,8 +527,8 @@ foreach ($statistik_bulanan as $item) {
                         <div class="card stats-card warning">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Pending</div>
-                                    <div class="stats-card-value"><?php echo number_format($stats['pending']); ?></div>
+                                    <div class="stats-card-title">Order Pending</div>
+                                    <div class="stats-card-value"><?php echo $stats['pending']; ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
                                     <i class="bi bi-hourglass-split stats-card-icon"></i>
@@ -505,10 +537,40 @@ foreach ($statistik_bulanan as $item) {
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card stats-card success">
+                            <div class="stats-card-body">
+                                <div>
+                                    <div class="stats-card-title">Order Selesai</div>
+                                    <div class="stats-card-value"><?php echo $stats['selesai']; ?></div>
+                                </div>
+                                <div class="stats-card-icon-container">
+                                    <i class="bi bi-check2-circle stats-card-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card stats-card danger">
+                            <div class="stats-card-body">
+                                <div>
+                                    <div class="stats-card-title">Order Dibatalkan</div>
+                                    <div class="stats-card-value"><?php echo $stats['batal']; ?></div>
+                                </div>
+                                <div class="stats-card-icon-container">
+                                    <i class="bi bi-x-circle-fill stats-card-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total Pendapatan -->
+                <div class="row">
+                    <div class="col-xl-12 col-md-12 mb-4">
                         <div class="card stats-card info">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Pendapatan</div>
+                                    <div class="stats-card-title">Total Pendapatan (Dari Order Status Selesai)</div>
                                     <div class="stats-card-value">Rp <?php echo number_format($stats['total_pendapatan'], 0, ',', '.'); ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
@@ -601,6 +663,8 @@ foreach ($statistik_bulanan as $item) {
                                                         case 'dibatalkan':
                                                             $status_class = 'danger';
                                                             break;
+                                                        default:
+                                                            $status_class = 'secondary';
                                                     }
                                                     ?>
                                                     <span class="badge bg-<?php echo $status_class; ?>">
@@ -623,8 +687,20 @@ foreach ($statistik_bulanan as $item) {
                                 </tbody>
                             </table>
                         </div>
+                        <div class="text-center mt-3">
+                            <a href="order.php" class="btn btn-primary">Lihat Semua Order</a>
+                        </div>
                     </div>
                 </div>
+
+                <!-- Footer -->
+                <footer class="sticky-footer mt-4 mb-2">
+                    <div class="container my-auto">
+                        <div class="copyright text-center my-auto">
+                            <span>Copyright &copy; Packing Kayu 2023</span>
+                        </div>
+                    </div>
+                </footer>
             </main>
         </div>
     </div>
@@ -725,30 +801,19 @@ foreach ($statistik_bulanan as $item) {
         // Status Chart
         const statusCtx = document.getElementById('statusChart').getContext('2d');
         const statusChart = new Chart(statusCtx, {
-            type: 'pie',
+            type: 'doughnut',
             data: {
-                labels: ['Selesai', 'Diproses', 'Pending'],
+                labels: <?php echo json_encode($status_labels); ?>,
                 datasets: [{
-                    data: [
-                        <?php echo $stats['selesai']; ?>, 
-                        <?php echo $stats['diproses']; ?>, 
-                        <?php echo $stats['pending']; ?>
-                    ],
-                    backgroundColor: [
-                        'rgba(28, 200, 138, 0.8)',
-                        'rgba(54, 185, 204, 0.8)',
-                        'rgba(246, 194, 62, 0.8)'
-                    ],
-                    borderColor: [
-                        'rgba(28, 200, 138, 1)',
-                        'rgba(54, 185, 204, 1)',
-                        'rgba(246, 194, 62, 1)'
-                    ],
-                    borderWidth: 1
+                    data: <?php echo json_encode($status_data); ?>,
+                    backgroundColor: <?php echo json_encode($status_colors); ?>,
+                    hoverBackgroundColor: <?php echo json_encode($status_hover_colors); ?>,
+                    hoverBorderColor: 'rgba(234, 236, 244, 1)',
                 }]
             },
             options: {
                 maintainAspectRatio: false,
+                cutout: '70%',
                 plugins: {
                     legend: {
                         position: 'bottom'

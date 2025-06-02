@@ -5,7 +5,7 @@
     "require": {
         "php": ">=7.4",
         "dompdf/dompdf": "^3.1",
-        "tecnickcom/tcpdf": "*"
+        "tecnickcom/tcpdf": "^6.9"
     },
     "autoload": {
         "psr-4": {

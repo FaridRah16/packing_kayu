@@ -2,6 +2,11 @@
 session_start();
 require_once 'config/database.php';
 
+// Pastikan error reporting diaktifkan untuk debugging
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 $database = new Database();
 $db = $database->getConnection();
 
@@ -99,7 +104,6 @@ $html = '<html>
             margin-bottom: 10px;
         }
         .row {
-            display: flex;
             margin-bottom: 5px;
         }
         .col-left {
@@ -153,30 +157,32 @@ $html = '<html>
     
     <div class="section">
         <div class="section-title">Detail Barang</div>
-        <div class="row">
-            <div class="col-left">Nama Barang:</div>
-            <div class="col-right">' . htmlspecialchars($estimasi['nama_barang']) . '</div>
-        </div>
-        <div class="row">
-            <div class="col-left">Ukuran:</div>
-            <div class="col-right">' . $estimasi['panjang'] . 'cm x ' . $estimasi['lebar'] . 'cm x ' . $estimasi['tinggi'] . 'cm</div>
-        </div>
-        <div class="row">
-            <div class="col-left">Volume:</div>
-            <div class="col-right">' . number_format($estimasi['volume'], 3) . ' m³</div>
-        </div>
-        <div class="row">
-            <div class="col-left">Berat:</div>
-            <div class="col-right">' . $estimasi['berat'] . ' kg</div>
-        </div>
-        <div class="row">
-            <div class="col-left">Jenis Kayu:</div>
-            <div class="col-right">' . $estimasi['jenis_kayu_nama'] . '</div>
-        </div>
-        <div class="row">
-            <div class="col-left">Kategori Harga:</div>
-            <div class="col-right">' . ($estimasi['harga_dimensi_nama'] ?? 'Harga Standar') . '</div>
-        </div>
+        <table>
+            <tr>
+                <td class="col-left">Nama Barang:</td>
+                <td class="col-right">' . htmlspecialchars($estimasi['nama_barang']) . '</td>
+            </tr>
+            <tr>
+                <td class="col-left">Ukuran:</td>
+                <td class="col-right">' . $estimasi['panjang'] . 'cm x ' . $estimasi['lebar'] . 'cm x ' . $estimasi['tinggi'] . 'cm</td>
+            </tr>
+            <tr>
+                <td class="col-left">Volume:</td>
+                <td class="col-right">' . number_format($estimasi['volume'], 3) . ' m³</td>
+            </tr>
+            <tr>
+                <td class="col-left">Berat:</td>
+                <td class="col-right">' . $estimasi['berat'] . ' kg</td>
+            </tr>
+            <tr>
+                <td class="col-left">Jenis Kayu:</td>
+                <td class="col-right">' . $estimasi['jenis_kayu_nama'] . '</td>
+            </tr>
+            <tr>
+                <td class="col-left">Kategori Harga:</td>
+                <td class="col-right">' . ($estimasi['harga_dimensi_nama'] ?? 'Harga Standar') . '</td>
+            </tr>
+        </table>
     </div>
     
     <div class="divider"></div>
@@ -243,15 +249,13 @@ $html .= '
     <div class="divider"></div>
     
     <div class="section">
-        <div class="section-title">Informasi Pengiriman</div>
-        <div class="row">
-            <div class="col-left">Lokasi Tujuan:</div>
-            <div class="col-right">' . htmlspecialchars($estimasi['lokasi_tujuan']) . '</div>
-        </div>
-        <div class="row">
-            <div class="col-left">Kontak:</div>
-            <div class="col-right">' . htmlspecialchars($estimasi['nomor_whatsapp']) . '</div>
-        </div>
+        <div class="section-title">Informasi Kontak</div>
+        <table>
+            <tr>
+                <td class="col-left">Nomor WhatsApp:</td>
+                <td class="col-right">' . htmlspecialchars($estimasi['nomor_whatsapp']) . '</td>
+            </tr>
+        </table>
     </div>
     
     <div class="footer">
@@ -262,34 +266,53 @@ $html .= '
 </body>
 </html>';
 
-// Menggunakan tcpdf sebagai alternatif karena tidak perlu instalasi tambahan
-require_once 'vendor/autoload.php';
-
-// Cek apakah autoload berhasil dimuat
-if (class_exists('TCPDF')) {
-    // Gunakan TCPDF
+try {
+    // Menggunakan TCPDF
+    require_once 'vendor/autoload.php';
+    
+    // Pastikan tidak ada output sebelumnya yang mengganggu
+    if (ob_get_contents()) ob_end_clean();
+    
+    // Buat instance TCPDF
     $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8');
-    $pdf->SetCreator('Estimasi Packing Kayu');
+    
+    // Set dokumen informasi
+    $pdf->SetCreator('Packing Kayu');
     $pdf->SetAuthor('Admin');
     $pdf->SetTitle('Estimasi Packing Kayu - ' . $estimasi['kode_pesanan']);
-    $pdf->SetMargins(10, 10, 10);
-    $pdf->SetHeaderMargin(0);
-    $pdf->SetFooterMargin(0);
+    $pdf->SetSubject('Estimasi Packing Kayu');
+    
+    // Hapus header dan footer default
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
+    
+    // Set margin
+    $pdf->SetMargins(15, 15, 15);
+    
+    // Set font default
+    $pdf->SetFont('helvetica', '', 10);
+    
+    // Tambahkan halaman
     $pdf->AddPage();
+    
+    // Tulis HTML ke PDF
     $pdf->writeHTML($html, true, false, true, false, '');
+    
+    // Keluarkan PDF (I = inline di browser)
+    header('Content-Type: application/pdf');
+    header('Cache-Control: private, must-revalidate, post-check=0, pre-check=0, max-age=1');
+    header('Pragma: public');
     $pdf->Output('estimasi_' . $estimasi['kode_pesanan'] . '.pdf', 'I');
-} elseif (class_exists('Dompdf\Dompdf')) {
-    // Gunakan Dompdf jika tersedia
-    $dompdf = new \Dompdf\Dompdf();
-    $dompdf->loadHtml($html);
-    $dompdf->setPaper('A4', 'portrait');
-    $dompdf->render();
-    $dompdf->stream('estimasi_' . $estimasi['kode_pesanan'] . '.pdf', array('Attachment' => 0));
-} else {
-    // Jika tidak ada library PDF yang tersedia, tampilkan HTML saja
-    header('Content-Type: text/html; charset=utf-8');
+    exit;
+} catch (Exception $e) {
+    // Jika terjadi error, tampilkan pesan error
+    echo '<div style="color:red; padding:20px; border:1px solid red; margin:20px;">';
+    echo '<h3>Error saat membuat PDF:</h3>';
+    echo '<p>' . $e->getMessage() . '</p>';
+    echo '<p>Silakan hubungi administrator.</p>';
+    echo '</div>';
+    
+    // Tampilkan HTML sebagai fallback
     echo $html;
 }
 ?> 

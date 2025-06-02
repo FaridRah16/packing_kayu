@@ -472,7 +472,12 @@ $harga_dimensi = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="estimasi.php">
-                                <i class="bi bi-calculator"></i> Estimasi
+                                <i class="bi bi-calculator"></i> Order
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="form_estimasi.php">
+                                <i class="bi bi-clipboard-check"></i> Estimasi
                             </a>
                         </li>
                         <li class="nav-item">

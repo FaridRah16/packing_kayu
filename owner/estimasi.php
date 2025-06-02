@@ -6,6 +6,49 @@ require_once '../config/database.php';
 $database = new Database();
 $db = $database->getConnection();
 
+// Cek apakah kolom 'tipe' sudah ada di tabel 'estimasi'
+try {
+    $query = "SHOW COLUMNS FROM estimasi LIKE 'tipe'";
+    $stmt = $db->prepare($query);
+    $stmt->execute();
+    
+    // Jika kolom 'tipe' belum ada, tambahkan
+    if ($stmt->rowCount() == 0) {
+        $query = "ALTER TABLE estimasi ADD COLUMN tipe ENUM('order', 'estimasi') DEFAULT 'order'";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+    }
+} catch (PDOException $e) {
+    // Jika gagal menambahkan kolom, abaikan dan lanjutkan
+}
+
+// Pesan notifikasi
+$message = '';
+$error = '';
+
+// Update status estimasi jika ada request
+if (isset($_GET['id']) && isset($_GET['status'])) {
+    $id = $_GET['id'];
+    $status = $_GET['status'];
+    
+    // Validasi status yang diperbolehkan
+    $allowed_status = ['pending', 'diproses', 'selesai', 'dibatalkan'];
+    if (in_array($status, $allowed_status)) {
+        try {
+            $query = "UPDATE estimasi SET status = :status WHERE id = :id";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':id', $id);
+            $stmt->bindParam(':status', $status);
+            $stmt->execute();
+            $message = "Status pesanan berhasil diperbarui menjadi " . ucfirst($status);
+        } catch (PDOException $e) {
+            $error = "Gagal memperbarui status: " . $e->getMessage();
+        }
+    } else {
+        $error = "Status tidak valid";
+    }
+}
+
 // Filter
 $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $search = isset($_GET['search']) ? $_GET['search'] : '';
@@ -20,6 +63,20 @@ $base_query = "FROM estimasi e
                LEFT JOIN users u ON e.user_id = u.id 
                LEFT JOIN jenis_kayu jk ON e.jenis_kayu_id = jk.id 
                WHERE 1=1";
+
+// Tambahkan filter untuk tipe 'order' jika kolom ada
+try {
+    $check_query = "SHOW COLUMNS FROM estimasi LIKE 'tipe'";
+    $check_stmt = $db->prepare($check_query);
+    $check_stmt->execute();
+    
+    if ($check_stmt->rowCount() > 0) {
+        // Hanya tampilkan yang bertipe 'order' atau NULL (tidak menampilkan tipe 'estimasi')
+        $base_query .= " AND (e.tipe = 'order' OR e.tipe IS NULL)";
+    }
+} catch (PDOException $e) {
+    // Jika query gagal, lanjutkan tanpa filter tipe
+}
 
 // Tambahkan filter jika ada
 if (!empty($status_filter)) {
@@ -70,7 +127,7 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Estimasi - Owner Panel</title>
+    <title>Data Order - Owner Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="../assets/css/style.css">
@@ -317,6 +374,27 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .pagination .page-item.active .page-link:hover {
             background: linear-gradient(40deg, #3662e0 0%, #2850bf 100%);
         }
+        
+        /* Style untuk status badge */
+        .status-badge-pending {
+            background-color: var(--warning-color);
+            color: #fff;
+        }
+        
+        .status-badge-diproses {
+            background-color: var(--info-color);
+            color: #fff;
+        }
+        
+        .status-badge-selesai {
+            background-color: var(--success-color);
+            color: #fff;
+        }
+        
+        .status-badge-dibatalkan {
+            background-color: var(--danger-color);
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -345,7 +423,7 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </li>
                         <li class="nav-item">
                             <a class="nav-link active" href="estimasi.php">
-                                <i class="bi bi-calculator"></i> Estimasi
+                                <i class="bi bi-calculator"></i> Order
                             </a>
                         </li>
                         <li class="nav-item mt-3">
@@ -364,7 +442,7 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <button class="navbar-toggler d-md-none collapsed me-3" type="button" data-bs-toggle="collapse" data-bs-target=".sidebar">
                         <span class="navbar-toggler-icon"></span>
                     </button>
-                    <span class="navbar-brand">Data Estimasi</span>
+                    <span class="navbar-brand">Data Order</span>
                     <div class="ms-auto">
                         <div class="dropdown profile-dropdown">
                             <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown">
@@ -380,9 +458,23 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 </nav>
 
+                <?php if(!empty($message)): ?>
+                <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                    <i class="bi bi-check-circle me-2"></i> <?php echo $message; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php endif; ?>
+
+                <?php if(!empty($error)): ?>
+                <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i> <?php echo $error; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php endif; ?>
+
                 <div class="card">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold">Filter Estimasi</h6>
+                        <h6 class="m-0 font-weight-bold">Filter Order</h6>
                     </div>
                     <div class="card-body">
                         <form class="row filter-form" method="get">
@@ -395,7 +487,7 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <option value="pending" <?php if($status_filter == 'pending') echo 'selected'; ?>>Pending</option>
                                     <option value="diproses" <?php if($status_filter == 'diproses') echo 'selected'; ?>>Diproses</option>
                                     <option value="selesai" <?php if($status_filter == 'selesai') echo 'selected'; ?>>Selesai</option>
-                                    <option value="batal" <?php if($status_filter == 'batal') echo 'selected'; ?>>Batal</option>
+                                    <option value="dibatalkan" <?php if($status_filter == 'dibatalkan') echo 'selected'; ?>>Dibatalkan</option>
                                 </select>
                             </div>
                             <div class="col-md-4 mb-2">
@@ -409,7 +501,7 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                 <div class="card">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold">Daftar Estimasi</h6>
+                        <h6 class="m-0 font-weight-bold">Daftar Order</h6>
                         <div class="header-icon">
                             <i class="bi bi-table"></i>
                         </div>
@@ -456,6 +548,11 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                                     <a href="../hasil_estimasi.php?id=<?php echo $estimasi['id']; ?>" class="btn btn-sm btn-primary btn-action">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
+                                                    <?php if($estimasi['status'] != 'dibatalkan' && $estimasi['status'] != 'selesai'): ?>
+                                                    <a href="?id=<?php echo $estimasi['id']; ?>&status=dibatalkan&page=<?php echo $page; ?>&search=<?php echo urlencode($search); ?>" class="btn btn-sm btn-danger btn-action" title="Batalkan Pesanan" onclick="return confirm('Yakin ingin membatalkan pesanan ini?')">
+                                                        <i class="bi bi-x-circle"></i>
+                                                    </a>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>

@@ -27,6 +27,11 @@ $stmt = $db->prepare($query);
 $stmt->execute();
 $estimasi_selesai = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
+$query = "SELECT COUNT(*) as total FROM estimasi WHERE status = 'dibatalkan'";
+$stmt = $db->prepare($query);
+$stmt->execute();
+$estimasi_batal = $stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
+
 $query = "SELECT COUNT(*) as total FROM users WHERE role = 'customer'";
 $stmt = $db->prepare($query);
 $stmt->execute();
@@ -71,6 +76,7 @@ $query = "SELECT e.*, u.username, jk.nama as jenis_kayu_nama
           FROM estimasi e 
           LEFT JOIN users u ON e.user_id = u.id 
           LEFT JOIN jenis_kayu jk ON e.jenis_kayu_id = jk.id 
+          WHERE (e.tipe = 'order' OR e.tipe IS NULL)
           ORDER BY e.created_at DESC LIMIT 5";
 $stmt = $db->prepare($query);
 $stmt->execute();
@@ -84,10 +90,26 @@ $total_pendapatan = $stmt->fetch(PDO::FETCH_ASSOC)['total_pendapatan'] ?? 0;
 
 // Data untuk donut chart
 $status_data = [
-    $estimasi_pending,
-    $estimasi_diproses,
-    $estimasi_selesai,
-    $total_estimasi - ($estimasi_pending + $estimasi_diproses + $estimasi_selesai)
+    $estimasi_pending ?? 0,
+    $estimasi_diproses ?? 0,
+    $estimasi_selesai ?? 0,
+    $estimasi_batal ?? 0
+];
+
+// Pastikan semua posisi status dalam array ada nilainya (minimal 0)
+// Ini untuk memastikan chart selalu menampilkan semua status
+$status_labels = ['Pending', 'Diproses', 'Selesai', 'Dibatalkan'];
+$status_colors = [
+    '#f6c23e', // Pending - Kuning
+    '#36b9cc', // Diproses - Biru
+    '#1cc88a', // Selesai - Hijau
+    '#e74a3b'  // Dibatalkan - Merah
+];
+$status_hover_colors = [
+    '#e0ae29', // Pending hover
+    '#2c9faf', // Diproses hover
+    '#17a673', // Selesai hover
+    '#d52a1a'  // Dibatalkan hover
 ];
 ?>
 <!DOCTYPE html>
@@ -95,7 +117,7 @@ $status_data = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Owner - Estimasi Packing Kayu</title>
+    <title>Dashboard Owner - Order Packing Kayu</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="../assets/css/style.css">
@@ -226,6 +248,10 @@ $status_data = [
             border-left-color: var(--warning-color);
         }
         
+        .stats-card.danger {
+            border-left-color: var(--danger-color);
+        }
+        
         .stats-card-body {
             padding: 1.25rem;
             display: flex;
@@ -264,6 +290,10 @@ $status_data = [
             background: linear-gradient(45deg, rgba(246, 194, 62, 0.1), rgba(246, 194, 62, 0.2));
         }
         
+        .stats-card.danger .stats-card-icon-container {
+            background: linear-gradient(45deg, rgba(231, 74, 59, 0.1), rgba(231, 74, 59, 0.2));
+        }
+        
         .stats-card-icon {
             font-size: 1.8rem;
             opacity: 1;
@@ -287,6 +317,11 @@ $status_data = [
         .stats-card.warning .stats-card-icon {
             color: var(--warning-color);
             filter: drop-shadow(0 2px 4px rgba(246, 194, 62, 0.3));
+        }
+        
+        .stats-card.danger .stats-card-icon {
+            color: var(--danger-color);
+            filter: drop-shadow(0 2px 4px rgba(231, 74, 59, 0.3));
         }
         
         .stats-card-title {
@@ -330,6 +365,10 @@ $status_data = [
         
         .stats-card.warning::after {
             background-color: var(--warning-color);
+        }
+        
+        .stats-card.danger::after {
+            background-color: var(--danger-color);
         }
         
         .table-wrapper {
@@ -583,7 +622,7 @@ $status_data = [
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="estimasi.php">
-                                <i class="bi bi-calculator"></i> Estimasi
+                                <i class="bi bi-calculator"></i> Order
                             </a>
                         </li>
                         <li class="nav-item mt-3">
@@ -641,7 +680,7 @@ $status_data = [
                         <div class="card stats-card primary">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Total Estimasi</div>
+                                    <div class="stats-card-title">Total Order</div>
                                     <div class="stats-card-value"><?php echo $total_estimasi; ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
@@ -654,7 +693,7 @@ $status_data = [
                         <div class="card stats-card warning">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Estimasi Pending</div>
+                                    <div class="stats-card-title">Order Pending</div>
                                     <div class="stats-card-value"><?php echo $estimasi_pending; ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
@@ -667,7 +706,7 @@ $status_data = [
                         <div class="card stats-card success">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Estimasi Selesai</div>
+                                    <div class="stats-card-title">Order Selesai</div>
                                     <div class="stats-card-value"><?php echo $estimasi_selesai; ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
@@ -677,10 +716,27 @@ $status_data = [
                         </div>
                     </div>
                     <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card stats-card danger">
+                            <div class="stats-card-body">
+                                <div>
+                                    <div class="stats-card-title">Order Dibatalkan</div>
+                                    <div class="stats-card-value"><?php echo $estimasi_batal; ?></div>
+                                </div>
+                                <div class="stats-card-icon-container">
+                                    <i class="bi bi-x-circle-fill stats-card-icon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Total Pendapatan -->
+                <div class="row">
+                    <div class="col-xl-12 col-md-12 mb-4">
                         <div class="card stats-card info">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Total Pendapatan</div>
+                                    <div class="stats-card-title">Total Pendapatan (Dari Order Status Selesai)</div>
                                     <div class="stats-card-value">Rp <?php echo number_format($total_pendapatan, 0, ',', '.'); ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
@@ -696,7 +752,7 @@ $status_data = [
                     <div class="col-xl-8 col-lg-7">
                         <div class="card">
                             <div class="card-header">
-                                <h6 class="m-0 font-weight-bold">Statistik Estimasi</h6>
+                                <h6 class="m-0 font-weight-bold">Statistik Order</h6>
                                 <div class="header-icon">
                                     <i class="bi bi-bar-chart"></i>
                                 </div>
@@ -711,7 +767,7 @@ $status_data = [
                     <div class="col-xl-4 col-lg-5">
                         <div class="card">
                             <div class="card-header">
-                                <h6 class="m-0 font-weight-bold">Status Estimasi</h6>
+                                <h6 class="m-0 font-weight-bold">Status Order</h6>
                                 <div class="header-icon">
                                     <i class="bi bi-pie-chart"></i>
                                 </div>
@@ -728,7 +784,7 @@ $status_data = [
                 <!-- Estimasi Terbaru -->
                 <div class="card">
                     <div class="card-header">
-                        <h6 class="m-0 font-weight-bold">Estimasi Terbaru</h6>
+                        <h6 class="m-0 font-weight-bold">Order Terbaru</h6>
                         <div class="header-icon">
                             <i class="bi bi-table"></i>
                         </div>
@@ -759,7 +815,8 @@ $status_data = [
                                             <span class="badge bg-<?php 
                                                 echo $estimasi['status'] == 'pending' ? 'warning' : 
                                                     ($estimasi['status'] == 'diproses' ? 'info' : 
-                                                    ($estimasi['status'] == 'selesai' ? 'success' : 'danger')); 
+                                                    ($estimasi['status'] == 'selesai' ? 'success' : 
+                                                    ($estimasi['status'] == 'dibatalkan' ? 'danger' : 'secondary'))); 
                                             ?>">
                                                 <?php echo ucfirst($estimasi['status']); ?>
                                             </span>
@@ -775,7 +832,7 @@ $status_data = [
                             </table>
                         </div>
                         <div class="text-center mt-3">
-                            <a href="estimasi.php" class="btn btn-primary">Lihat Semua Estimasi</a>
+                            <a href="estimasi.php" class="btn btn-primary">Lihat Semua Order</a>
                         </div>
                     </div>
                 </div>
@@ -794,14 +851,14 @@ $status_data = [
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Chart untuk Statistik Estimasi
+        // Chart untuk Statistik Order
         const ctx = document.getElementById('estimasiChart').getContext('2d');
         const estimasiChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: <?php echo json_encode($labels_bulan); ?>,
                 datasets: [{
-                    label: 'Jumlah Estimasi',
+                    label: 'Jumlah Order',
                     data: <?php echo json_encode($data_jumlah); ?>,
                     backgroundColor: 'rgba(78, 115, 223, 0.05)',
                     borderColor: 'rgba(78, 115, 223, 1)',
@@ -848,21 +905,11 @@ $status_data = [
         const statusChart = new Chart(statusCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Pending', 'Diproses', 'Selesai', 'Dibatalkan'],
+                labels: <?php echo json_encode($status_labels); ?>,
                 datasets: [{
                     data: <?php echo json_encode($status_data); ?>,
-                    backgroundColor: [
-                        '#f6c23e',
-                        '#36b9cc',
-                        '#1cc88a',
-                        '#e74a3b'
-                    ],
-                    hoverBackgroundColor: [
-                        '#e0ae29',
-                        '#2c9faf',
-                        '#17a673',
-                        '#d52a1a'
-                    ],
+                    backgroundColor: <?php echo json_encode($status_colors); ?>,
+                    hoverBackgroundColor: <?php echo json_encode($status_hover_colors); ?>,
                     hoverBorderColor: 'rgba(234, 236, 244, 1)',
                 }]
             },

@@ -60,6 +60,49 @@ foreach ($estimasi_list as $estimasi) {
         $stats[$estimasi['status']]++;
     }
 }
+
+// Statistik pendapatan per hari
+$query = "SELECT DATE(created_at) as tanggal, SUM(estimasi_biaya) as total 
+          FROM estimasi 
+          WHERE status = 'selesai' 
+          AND created_at BETWEEN :start_date AND :end_date 
+          GROUP BY DATE(created_at) 
+          ORDER BY tanggal ASC";
+$stmt = $db->prepare($query);
+$stmt->bindParam(':start_date', $params['start_date']);
+$stmt->bindParam(':end_date', $params['end_date']);
+$stmt->execute();
+$pendapatan_harian = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$tanggal_array = [];
+$pendapatan_array = [];
+
+foreach ($pendapatan_harian as $item) {
+    $tanggal_array[] = date('d/m/Y', strtotime($item['tanggal']));
+    $pendapatan_array[] = (int)$item['total'];
+}
+
+// Statistik per jenis kayu
+$query = "SELECT jk.nama as jenis_kayu, COUNT(e.id) as jumlah, SUM(e.estimasi_biaya) as total_pendapatan
+          FROM estimasi e
+          JOIN jenis_kayu jk ON e.jenis_kayu_id = jk.id
+          WHERE e.status = 'selesai' 
+          AND e.created_at BETWEEN :start_date AND :end_date 
+          GROUP BY jk.nama
+          ORDER BY total_pendapatan DESC";
+$stmt = $db->prepare($query);
+$stmt->bindParam(':start_date', $params['start_date']);
+$stmt->bindParam(':end_date', $params['end_date']);
+$stmt->execute();
+$statistik_kayu = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Data untuk pie chart
+$jenis_kayu_labels = [];
+$jenis_kayu_data = [];
+foreach ($statistik_kayu as $item) {
+    $jenis_kayu_labels[] = $item['jenis_kayu'];
+    $jenis_kayu_data[] = (int)$item['total_pendapatan'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -70,6 +113,7 @@ foreach ($estimasi_list as $estimasi) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-color: #4e73df;
@@ -253,7 +297,7 @@ foreach ($estimasi_list as $estimasi) {
         
         .btn-action:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.1);
         }
         
         .btn-action.btn-warning {
@@ -305,6 +349,27 @@ foreach ($estimasi_list as $estimasi) {
             font-weight: 600;
             letter-spacing: 0.03rem;
             border-radius: 0.5rem;
+        }
+        
+        /* Style untuk status badge */
+        .status-badge-pending {
+            background-color: var(--warning-color);
+            color: #fff;
+        }
+        
+        .status-badge-diproses {
+            background-color: var(--info-color);
+            color: #fff;
+        }
+        
+        .status-badge-selesai {
+            background-color: var(--success-color);
+            color: #fff;
+        }
+        
+        .status-badge-dibatalkan {
+            background-color: var(--danger-color);
+            color: #fff;
         }
         
         .alert {
@@ -536,6 +601,55 @@ foreach ($estimasi_list as $estimasi) {
         .stats-card.warning::after {
             background-color: var(--warning-color);
         }
+        
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 300px;
+        }
+        
+        /* Style untuk table sorting dan filtering */
+        .sort-asc, .sort-desc {
+            background-color: rgba(78, 115, 223, 0.1);
+            cursor: pointer;
+        }
+        
+        .sort-icon {
+            margin-left: 5px;
+            font-size: 0.8rem;
+        }
+        
+        th[data-sort] {
+            cursor: pointer;
+            position: relative;
+        }
+        
+        th[data-sort]:hover {
+            background-color: rgba(78, 115, 223, 0.05);
+        }
+        
+        tr.filter-row td {
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-top: none;
+        }
+        
+        .filter-range {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .filter-range input {
+            width: calc(50% - 2.5px);
+            font-size: 0.8rem;
+        }
+
+        /* Print style */
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -574,7 +688,12 @@ foreach ($estimasi_list as $estimasi) {
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="estimasi.php">
-                                <i class="bi bi-calculator"></i> Estimasi
+                                <i class="bi bi-calculator"></i> Order
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="form_estimasi.php">
+                                <i class="bi bi-clipboard-check"></i> Estimasi
                             </a>
                         </li>
                         <li class="nav-item">
@@ -621,8 +740,8 @@ foreach ($estimasi_list as $estimasi) {
                             <div class="card-body py-3">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h4 class="mb-1">Laporan Estimasi</h4>
-                                        <p class="mb-0">Lihat dan cetak laporan estimasi packing kayu</p>
+                                        <h4 class="mb-1">Laporan Order</h4>
+                                        <p class="mb-0">Lihat dan cetak laporan order packing kayu</p>
                                     </div>
                                     <i class="bi bi-file-earmark-bar-graph display-4 opacity-50"></i>
                                 </div>
@@ -683,7 +802,7 @@ foreach ($estimasi_list as $estimasi) {
                 <!-- Print Header -->
                 <div class="print-section mb-4">
                     <div class="text-center mb-4">
-                        <h3>LAPORAN ESTIMASI PACKING KAYU</h3>
+                        <h3>LAPORAN ORDER PACKING KAYU</h3>
                         <p>Periode: <?php echo date('d/m/Y', strtotime($start_date)) . ' - ' . date('d/m/Y', strtotime($end_date)); ?></p>
                         <?php if (!empty($status)): ?>
                             <p>Status: <?php echo ucfirst($status); ?></p>
@@ -691,14 +810,14 @@ foreach ($estimasi_list as $estimasi) {
                     </div>
                 </div>
 
-                <!-- Statistik -->
-                <div class="row mb-4">
+                <!-- Statistics Row -->
+                <div class="row">
                     <div class="col-xl-3 col-md-6 mb-4">
                         <div class="card stats-card primary">
                             <div class="stats-card-body">
                                 <div>
-                                    <div class="stats-card-title">Total Estimasi</div>
-                                    <div class="stats-card-value"><?php echo $total_estimasi; ?></div>
+                                    <div class="stats-card-title">Total Order</div>
+                                    <div class="stats-card-value"><?php echo number_format($total_estimasi); ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
                                     <i class="bi bi-clipboard-data-fill stats-card-icon"></i>
@@ -711,7 +830,7 @@ foreach ($estimasi_list as $estimasi) {
                             <div class="stats-card-body">
                                 <div>
                                     <div class="stats-card-title">Pending</div>
-                                    <div class="stats-card-value"><?php echo $stats['pending']; ?></div>
+                                    <div class="stats-card-value"><?php echo number_format($stats['pending']); ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
                                     <i class="bi bi-hourglass-split stats-card-icon"></i>
@@ -724,7 +843,7 @@ foreach ($estimasi_list as $estimasi) {
                             <div class="stats-card-body">
                                 <div>
                                     <div class="stats-card-title">Diproses</div>
-                                    <div class="stats-card-value"><?php echo $stats['diproses']; ?></div>
+                                    <div class="stats-card-value"><?php echo number_format($stats['diproses']); ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
                                     <i class="bi bi-gear stats-card-icon"></i>
@@ -737,7 +856,7 @@ foreach ($estimasi_list as $estimasi) {
                             <div class="stats-card-body">
                                 <div>
                                     <div class="stats-card-title">Selesai</div>
-                                    <div class="stats-card-value"><?php echo $stats['selesai']; ?></div>
+                                    <div class="stats-card-value"><?php echo number_format($stats['selesai']); ?></div>
                                 </div>
                                 <div class="stats-card-icon-container">
                                     <i class="bi bi-check2-circle stats-card-icon"></i>
@@ -746,7 +865,7 @@ foreach ($estimasi_list as $estimasi) {
                         </div>
                     </div>
                 </div>
-
+                
                 <!-- Total Biaya -->
                 <div class="row mb-4">
                     <div class="col-12">
@@ -754,7 +873,7 @@ foreach ($estimasi_list as $estimasi) {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h5 class="text-muted">Total Estimasi Biaya</h5>
+                                        <h5 class="text-muted">Total Order Biaya (Status Selesai)</h5>
                                         <h2 class="mt-2 mb-0 text-primary">Rp <?php echo number_format($total_biaya, 0, ',', '.'); ?></h2>
                                     </div>
                                     <div class="stats-card-icon-container bg-primary bg-opacity-10" style="width: 60px; height: 60px;">
@@ -766,52 +885,86 @@ foreach ($estimasi_list as $estimasi) {
                     </div>
                 </div>
 
+                <!-- Grafik -->
+                <div class="row mb-4">
+                    <div class="col-xl-8 col-lg-7">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="m-0 font-weight-bold">Pendapatan Harian (Status Selesai)</h6>
+                                <div class="header-icon">
+                                    <i class="bi bi-bar-chart"></i>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="pendapatanChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-4 col-lg-5">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="m-0 font-weight-bold">Pendapatan Per Jenis Kayu (Status Selesai)</h6>
+                                <div class="header-icon">
+                                    <i class="bi bi-pie-chart"></i>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="jenisKayuChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Daftar Estimasi -->
                 <div class="card">
                     <div class="card-header no-print">
-                        <h6 class="m-0 font-weight-bold">Daftar Estimasi</h6>
+                        <h6 class="m-0 font-weight-bold">Daftar Order</h6>
                         <div class="header-icon">
                             <i class="bi bi-table"></i>
                         </div>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover" width="100%" cellspacing="0" id="tabelEstimasi">
                                 <thead>
                                     <tr>
                                         <th>No</th>
                                         <th>Kode</th>
                                         <th>Nama Barang</th>
                                         <th>Customer</th>
-                                        <th>Jenis Kayu</th>
-                                        <th>Tanggal</th>
-                                        <th>Estimasi Biaya</th>
-                                        <th>Status</th>
+                                        <th data-sort="jenis-kayu">Jenis Kayu <i class="bi bi-arrow-down-up"></i></th>
+                                        <th data-sort="tanggal">Tanggal <i class="bi bi-arrow-down-up"></i></th>
+                                        <th data-sort="biaya">Order Biaya <i class="bi bi-arrow-down-up"></i></th>
+                                        <th data-sort="status">Status <i class="bi bi-arrow-down-up"></i></th>
                                         <th class="no-print">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if(count($estimasi_list) > 0): ?>
-                                        <?php $no = 1; foreach($estimasi_list as $estimasi): ?>
+                                    <?php if (!empty($estimasi_list)): ?>
+                                        <?php $no = 1; foreach ($estimasi_list as $estimasi): ?>
                                             <tr>
                                                 <td><?php echo $no++; ?></td>
                                                 <td><?php echo $estimasi['kode_pesanan']; ?></td>
                                                 <td><?php echo htmlspecialchars($estimasi['nama_barang']); ?></td>
-                                                <td><?php echo $estimasi['username'] ?? 'Guest'; ?></td>
-                                                <td><?php echo $estimasi['jenis_kayu_nama']; ?></td>
-                                                <td><?php echo date('d M Y', strtotime($estimasi['created_at'])); ?></td>
-                                                <td>Rp <?php echo number_format($estimasi['estimasi_biaya'], 0, ',', '.'); ?></td>
-                                                <td>
+                                                <td><?php echo htmlspecialchars($estimasi['username'] ?? 'Guest'); ?></td>
+                                                <td data-jenis-kayu="<?php echo htmlspecialchars($estimasi['jenis_kayu_nama']); ?>"><?php echo htmlspecialchars($estimasi['jenis_kayu_nama']); ?></td>
+                                                <td data-tanggal="<?php echo $estimasi['created_at']; ?>"><?php echo date('d M Y', strtotime($estimasi['created_at'])); ?></td>
+                                                <td data-biaya="<?php echo $estimasi['estimasi_biaya']; ?>">Rp <?php echo number_format($estimasi['estimasi_biaya'], 0, ',', '.'); ?></td>
+                                                <td data-status="<?php echo $estimasi['status']; ?>">
                                                     <span class="badge status-badge-<?php 
                                                         echo $estimasi['status'] == 'pending' ? 'pending' : 
                                                             ($estimasi['status'] == 'diproses' ? 'diproses' : 
-                                                            ($estimasi['status'] == 'selesai' ? 'selesai' : 'batal')); 
+                                                            ($estimasi['status'] == 'selesai' ? 'selesai' : 'dibatalkan')); 
                                                     ?>">
                                                         <?php echo ucfirst($estimasi['status']); ?>
                                                     </span>
                                                 </td>
                                                 <td class="no-print">
-                                                    <a href="../hasil_estimasi.php?id=<?php echo $estimasi['id']; ?>" class="btn btn-info btn-action" title="Lihat Detail">
+                                                    <a href="estimasi.php?id=<?php echo $estimasi['id']; ?>" class="btn btn-info btn-action" title="Lihat Detail">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
                                                 </td>
@@ -832,6 +985,44 @@ foreach ($estimasi_list as $estimasi) {
                     </div>
                 </div>
                 
+                <!-- Detail Pendapatan Per Jenis Kayu -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h6 class="m-0 font-weight-bold">Detail Pendapatan Per Jenis Kayu (Status Selesai)</h6>
+                        <div class="header-icon">
+                            <i class="bi bi-table"></i>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Jenis Kayu</th>
+                                        <th>Jumlah Estimasi</th>
+                                        <th>Total Pendapatan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if(empty($statistik_kayu)): ?>
+                                        <tr>
+                                            <td colspan="3" class="text-center">Tidak ada data pendapatan untuk periode ini</td>
+                                        </tr>
+                                    <?php else: ?>
+                                        <?php foreach($statistik_kayu as $kayu): ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($kayu['jenis_kayu']); ?></td>
+                                                <td><?php echo number_format($kayu['jumlah']); ?></td>
+                                                <td>Rp <?php echo number_format($kayu['total_pendapatan'], 0, ',', '.'); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Footer -->
                 <footer class="sticky-footer mt-4 mb-2 no-print">
                     <div class="container my-auto">
@@ -845,5 +1036,307 @@ foreach ($estimasi_list as $estimasi) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Chart untuk Pendapatan Harian
+        const pendapatanCtx = document.getElementById('pendapatanChart').getContext('2d');
+        const pendapatanChart = new Chart(pendapatanCtx, {
+            type: 'line',
+            data: {
+                labels: <?php echo json_encode($tanggal_array); ?>,
+                datasets: [{
+                    label: 'Pendapatan Harian',
+                    data: <?php echo json_encode($pendapatan_array); ?>,
+                    backgroundColor: 'rgba(28, 200, 138, 0.05)',
+                    borderColor: 'rgba(28, 200, 138, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(28, 200, 138, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: 'rgba(28, 200, 138, 1)',
+                    pointHoverBorderColor: '#fff',
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        },
+                        ticks: {
+                            callback: function(value, index, values) {
+                                return 'Rp ' + value.toLocaleString('id-ID');
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += 'Rp ' + context.parsed.y.toLocaleString('id-ID');
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Chart untuk Pendapatan Per Jenis Kayu
+        const jenisKayuCtx = document.getElementById('jenisKayuChart').getContext('2d');
+        const jenisKayuChart = new Chart(jenisKayuCtx, {
+            type: 'doughnut',
+            data: {
+                labels: <?php echo json_encode($jenis_kayu_labels); ?>,
+                datasets: [{
+                    data: <?php echo json_encode($jenis_kayu_data); ?>,
+                    backgroundColor: [
+                        '#4e73df',
+                        '#1cc88a',
+                        '#36b9cc',
+                        '#f6c23e',
+                        '#e74a3b',
+                        '#5a5c69',
+                        '#6610f2',
+                        '#fd7e14',
+                        '#20c9a6',
+                        '#858796'
+                    ],
+                    hoverOffset: 5
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.raw !== null) {
+                                    label += 'Rp ' + context.raw.toLocaleString('id-ID');
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Fungsi untuk table sorting dan filtering
+        document.addEventListener('DOMContentLoaded', function() {
+            const dataTable = document.getElementById('tabelEstimasi');
+            if (!dataTable) return;
+
+            // Tambahkan event listener untuk sorting pada header tabel
+            const tableHeaders = dataTable.querySelectorAll('th[data-sort]');
+            tableHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const sortKey = this.getAttribute('data-sort');
+                    const sortDirection = this.classList.contains('sort-asc') ? 'desc' : 'asc';
+                    
+                    // Reset semua header
+                    tableHeaders.forEach(h => {
+                        h.classList.remove('sort-asc', 'sort-desc');
+                        h.querySelector('i.sort-icon')?.remove();
+                    });
+                    
+                    // Set arah pengurutan pada header yang diklik
+                    this.classList.add(`sort-${sortDirection}`);
+                    
+                    // Tambahkan ikon sort
+                    const icon = document.createElement('i');
+                    icon.className = `bi bi-arrow-${sortDirection === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
+                    this.appendChild(icon);
+                    
+                    sortTable(dataTable, sortKey, sortDirection);
+                });
+            });
+
+            // Inisialisasi filter pada kolom tertentu
+            initializeFilters();
+        });
+
+        // Fungsi untuk mengurutkan tabel
+        function sortTable(table, sortKey, direction) {
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            // Sorting logic
+            rows.sort((a, b) => {
+                let aValue, bValue;
+                
+                // Tentukan jenis data berdasarkan kolom yang diurutkan
+                if (sortKey === 'tanggal') {
+                    // Format tanggal: dd MMM YYYY
+                    const dateA = a.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`);
+                    const dateB = b.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`);
+                    aValue = new Date(dateA).getTime();
+                    bValue = new Date(dateB).getTime();
+                } else if (sortKey === 'biaya') {
+                    // Format biaya: Rp. X.XXX.XXX
+                    aValue = parseInt(a.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`));
+                    bValue = parseInt(b.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`));
+                } else {
+                    // Format teks biasa
+                    aValue = a.querySelector(`td[data-${sortKey}]`).textContent.trim().toLowerCase();
+                    bValue = b.querySelector(`td[data-${sortKey}]`).textContent.trim().toLowerCase();
+                }
+                
+                // Urutkan
+                if (direction === 'asc') {
+                    return aValue > bValue ? 1 : -1;
+                } else {
+                    return aValue < bValue ? 1 : -1;
+                }
+            });
+            
+            // Hapus semua baris dan tambahkan kembali dalam urutan baru
+            rows.forEach(row => tbody.removeChild(row));
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // Fungsi filter untuk baris tabel
+        function filterTable() {
+            const table = document.getElementById('tabelEstimasi');
+            const rows = Array.from(table.querySelectorAll('tbody tr'));
+            
+            const statusFilter = document.getElementById('filterStatus').value.toLowerCase();
+            const jenisKayuFilter = document.getElementById('filterJenisKayu').value.toLowerCase();
+            const minBiaya = parseInt(document.getElementById('filterMinBiaya').value) || 0;
+            const maxBiaya = parseInt(document.getElementById('filterMaxBiaya').value) || Infinity;
+            
+            rows.forEach(row => {
+                const status = row.querySelector('td[data-status]').textContent.toLowerCase();
+                const jenisKayu = row.querySelector('td[data-jenis-kayu]').textContent.toLowerCase();
+                const biaya = parseInt(row.querySelector('td[data-biaya]').getAttribute('data-biaya'));
+                
+                const matchStatus = statusFilter === '' || status.includes(statusFilter);
+                const matchJenisKayu = jenisKayuFilter === '' || jenisKayu.includes(jenisKayuFilter);
+                const matchBiaya = biaya >= minBiaya && biaya <= maxBiaya;
+                
+                if (matchStatus && matchJenisKayu && matchBiaya) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Inisialisasi filter
+        function initializeFilters() {
+            const table = document.getElementById('tabelEstimasi');
+            if (!table) return;
+            
+            const filterRow = document.createElement('tr');
+            filterRow.className = 'filter-row';
+            
+            // Buat dropdown filter untuk Status dan Jenis Kayu
+            const columns = table.querySelectorAll('thead th');
+            columns.forEach((column, index) => {
+                const filterCell = document.createElement('td');
+                
+                const sortKey = column.getAttribute('data-sort');
+                if (sortKey === 'status') {
+                    // Filter untuk status
+                    const statusSet = new Set();
+                    table.querySelectorAll('tbody td[data-status]').forEach(cell => {
+                        statusSet.add(cell.textContent.trim());
+                    });
+                    
+                    const select = createFilterSelect('filterStatus', Array.from(statusSet));
+                    filterCell.appendChild(select);
+                }
+                else if (sortKey === 'jenis-kayu') {
+                    // Filter untuk jenis kayu
+                    const jenisKayuSet = new Set();
+                    table.querySelectorAll('tbody td[data-jenis-kayu]').forEach(cell => {
+                        jenisKayuSet.add(cell.textContent.trim());
+                    });
+                    
+                    const select = createFilterSelect('filterJenisKayu', Array.from(jenisKayuSet));
+                    filterCell.appendChild(select);
+                }
+                else if (sortKey === 'biaya') {
+                    // Filter untuk rentang biaya
+                    const filterContainer = document.createElement('div');
+                    filterContainer.className = 'filter-range d-flex';
+                    
+                    const minInput = document.createElement('input');
+                    minInput.type = 'number';
+                    minInput.id = 'filterMinBiaya';
+                    minInput.className = 'form-control form-control-sm';
+                    minInput.placeholder = 'Min';
+                    minInput.addEventListener('input', filterTable);
+                    
+                    const maxInput = document.createElement('input');
+                    maxInput.type = 'number';
+                    maxInput.id = 'filterMaxBiaya';
+                    maxInput.className = 'form-control form-control-sm';
+                    maxInput.placeholder = 'Max';
+                    maxInput.addEventListener('input', filterTable);
+                    
+                    filterContainer.appendChild(minInput);
+                    filterContainer.appendChild(maxInput);
+                    filterCell.appendChild(filterContainer);
+                }
+                
+                filterRow.appendChild(filterCell);
+            });
+            
+            // Tambahkan baris filter setelah header tabel
+            const thead = table.querySelector('thead');
+            thead.appendChild(filterRow);
+        }
+
+        // Fungsi untuk membuat dropdown filter
+        function createFilterSelect(id, options) {
+            const select = document.createElement('select');
+            select.id = id;
+            select.className = 'form-select form-select-sm';
+            
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Semua';
+            select.appendChild(defaultOption);
+            
+            options.forEach(option => {
+                const optElement = document.createElement('option');
+                optElement.value = option.toLowerCase();
+                optElement.textContent = option;
+                select.appendChild(optElement);
+            });
+            
+            select.addEventListener('change', filterTable);
+            return select;
+        }
+    </script>
 </body>
 </html> 

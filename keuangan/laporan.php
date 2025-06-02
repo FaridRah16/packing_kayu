@@ -483,8 +483,44 @@ foreach ($statistik_kayu as $item) {
             background-color: var(--success-color);
         }
         
-        .status-badge-batal {
+        .status-badge-dibatalkan {
             background-color: var(--danger-color);
+        }
+        
+        /* Style untuk table sorting dan filtering */
+        .sort-asc, .sort-desc {
+            background-color: rgba(78, 115, 223, 0.1);
+            cursor: pointer;
+        }
+        
+        .sort-icon {
+            margin-left: 5px;
+            font-size: 0.8rem;
+        }
+        
+        th[data-sort] {
+            cursor: pointer;
+            position: relative;
+        }
+        
+        th[data-sort]:hover {
+            background-color: rgba(78, 115, 223, 0.05);
+        }
+        
+        tr.filter-row td {
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-top: none;
+        }
+        
+        .filter-range {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .filter-range input {
+            width: calc(50% - 2.5px);
+            font-size: 0.8rem;
         }
         
         /* Print style */
@@ -747,17 +783,17 @@ foreach ($statistik_kayu as $item) {
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover" id="tabelEstimasi">
                                 <thead>
                                     <tr>
                                         <th>No</th>
                                         <th>Kode</th>
                                         <th>Nama Barang</th>
                                         <th>Customer</th>
-                                        <th>Jenis Kayu</th>
-                                        <th>Tanggal</th>
-                                        <th>Estimasi Biaya</th>
-                                        <th>Status</th>
+                                        <th data-sort="jenis-kayu">Jenis Kayu <i class="bi bi-arrow-down-up"></i></th>
+                                        <th data-sort="tanggal">Tanggal <i class="bi bi-arrow-down-up"></i></th>
+                                        <th data-sort="biaya">Estimasi Biaya <i class="bi bi-arrow-down-up"></i></th>
+                                        <th data-sort="status">Status <i class="bi bi-arrow-down-up"></i></th>
                                         <th class="no-print">Aksi</th>
                                     </tr>
                                 </thead>
@@ -769,14 +805,14 @@ foreach ($statistik_kayu as $item) {
                                                 <td><?php echo $estimasi['kode_pesanan']; ?></td>
                                                 <td><?php echo htmlspecialchars($estimasi['nama_barang']); ?></td>
                                                 <td><?php echo $estimasi['username'] ?? 'Guest'; ?></td>
-                                                <td><?php echo $estimasi['jenis_kayu_nama']; ?></td>
-                                                <td><?php echo date('d M Y', strtotime($estimasi['created_at'])); ?></td>
-                                                <td>Rp <?php echo number_format($estimasi['estimasi_biaya'], 0, ',', '.'); ?></td>
-                                                <td>
+                                                <td data-jenis-kayu="<?php echo htmlspecialchars($estimasi['jenis_kayu_nama']); ?>"><?php echo $estimasi['jenis_kayu_nama']; ?></td>
+                                                <td data-tanggal="<?php echo $estimasi['created_at']; ?>"><?php echo date('d M Y', strtotime($estimasi['created_at'])); ?></td>
+                                                <td data-biaya="<?php echo $estimasi['estimasi_biaya']; ?>">Rp <?php echo number_format($estimasi['estimasi_biaya'], 0, ',', '.'); ?></td>
+                                                <td data-status="<?php echo $estimasi['status']; ?>">
                                                     <span class="badge status-badge-<?php 
                                                         echo $estimasi['status'] == 'pending' ? 'pending' : 
                                                             ($estimasi['status'] == 'diproses' ? 'diproses' : 
-                                                            ($estimasi['status'] == 'selesai' ? 'selesai' : 'batal')); 
+                                                            ($estimasi['status'] == 'selesai' ? 'selesai' : 'dibatalkan')); 
                                                     ?>">
                                                         <?php echo ucfirst($estimasi['status']); ?>
                                                     </span>
@@ -845,7 +881,7 @@ foreach ($statistik_kayu as $item) {
                 <footer class="sticky-footer mt-4 mb-2 no-print">
                     <div class="container my-auto">
                         <div class="copyright text-center my-auto">
-                            <span>Copyright &copy; Packing Kayu 2023</span>
+                            <span></span>
                         </div>
                     </div>
                 </footer>
@@ -967,6 +1003,194 @@ foreach ($statistik_kayu as $item) {
                 }
             }
         });
+
+        // Fungsi untuk table sorting dan filtering
+        document.addEventListener('DOMContentLoaded', function() {
+            const dataTable = document.getElementById('tabelEstimasi');
+            if (!dataTable) return;
+
+            // Tambahkan event listener untuk sorting pada header tabel
+            const tableHeaders = dataTable.querySelectorAll('th[data-sort]');
+            tableHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const sortKey = this.getAttribute('data-sort');
+                    const sortDirection = this.classList.contains('sort-asc') ? 'desc' : 'asc';
+                    
+                    // Reset semua header
+                    tableHeaders.forEach(h => {
+                        h.classList.remove('sort-asc', 'sort-desc');
+                        h.querySelector('i.sort-icon')?.remove();
+                    });
+                    
+                    // Set arah pengurutan pada header yang diklik
+                    this.classList.add(`sort-${sortDirection}`);
+                    
+                    // Tambahkan ikon sort
+                    const icon = document.createElement('i');
+                    icon.className = `bi bi-arrow-${sortDirection === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
+                    this.appendChild(icon);
+                    
+                    sortTable(dataTable, sortKey, sortDirection);
+                });
+            });
+
+            // Inisialisasi filter pada kolom tertentu
+            initializeFilters();
+        });
+
+        // Fungsi untuk mengurutkan tabel
+        function sortTable(table, sortKey, direction) {
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            // Sorting logic
+            rows.sort((a, b) => {
+                let aValue, bValue;
+                
+                // Tentukan jenis data berdasarkan kolom yang diurutkan
+                if (sortKey === 'tanggal') {
+                    // Format tanggal: dd MMM YYYY
+                    const dateA = a.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`);
+                    const dateB = b.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`);
+                    aValue = new Date(dateA).getTime();
+                    bValue = new Date(dateB).getTime();
+                } else if (sortKey === 'biaya') {
+                    // Format biaya: Rp. X.XXX.XXX
+                    aValue = parseInt(a.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`));
+                    bValue = parseInt(b.querySelector(`td[data-${sortKey}]`).getAttribute(`data-${sortKey}`));
+                } else {
+                    // Format teks biasa
+                    aValue = a.querySelector(`td[data-${sortKey}]`).textContent.trim().toLowerCase();
+                    bValue = b.querySelector(`td[data-${sortKey}]`).textContent.trim().toLowerCase();
+                }
+                
+                // Urutkan
+                if (direction === 'asc') {
+                    return aValue > bValue ? 1 : -1;
+                } else {
+                    return aValue < bValue ? 1 : -1;
+                }
+            });
+            
+            // Hapus semua baris dan tambahkan kembali dalam urutan baru
+            rows.forEach(row => tbody.removeChild(row));
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // Fungsi filter untuk baris tabel
+        function filterTable() {
+            const table = document.getElementById('tabelEstimasi');
+            const rows = Array.from(table.querySelectorAll('tbody tr'));
+            
+            const statusFilter = document.getElementById('filterStatus').value.toLowerCase();
+            const jenisKayuFilter = document.getElementById('filterJenisKayu').value.toLowerCase();
+            const minBiaya = parseInt(document.getElementById('filterMinBiaya').value) || 0;
+            const maxBiaya = parseInt(document.getElementById('filterMaxBiaya').value) || Infinity;
+            
+            rows.forEach(row => {
+                const status = row.querySelector('td[data-status]').textContent.toLowerCase();
+                const jenisKayu = row.querySelector('td[data-jenis-kayu]').textContent.toLowerCase();
+                const biaya = parseInt(row.querySelector('td[data-biaya]').getAttribute('data-biaya'));
+                
+                const matchStatus = statusFilter === '' || status.includes(statusFilter);
+                const matchJenisKayu = jenisKayuFilter === '' || jenisKayu.includes(jenisKayuFilter);
+                const matchBiaya = biaya >= minBiaya && biaya <= maxBiaya;
+                
+                if (matchStatus && matchJenisKayu && matchBiaya) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Inisialisasi filter
+        function initializeFilters() {
+            const table = document.getElementById('tabelEstimasi');
+            if (!table) return;
+            
+            const filterRow = document.createElement('tr');
+            filterRow.className = 'filter-row';
+            
+            // Buat dropdown filter untuk Status dan Jenis Kayu
+            const columns = table.querySelectorAll('thead th');
+            columns.forEach((column, index) => {
+                const filterCell = document.createElement('td');
+                
+                const sortKey = column.getAttribute('data-sort');
+                if (sortKey === 'status') {
+                    // Filter untuk status
+                    const statusSet = new Set();
+                    table.querySelectorAll('tbody td[data-status]').forEach(cell => {
+                        statusSet.add(cell.textContent.trim());
+                    });
+                    
+                    const select = createFilterSelect('filterStatus', Array.from(statusSet));
+                    filterCell.appendChild(select);
+                }
+                else if (sortKey === 'jenis-kayu') {
+                    // Filter untuk jenis kayu
+                    const jenisKayuSet = new Set();
+                    table.querySelectorAll('tbody td[data-jenis-kayu]').forEach(cell => {
+                        jenisKayuSet.add(cell.textContent.trim());
+                    });
+                    
+                    const select = createFilterSelect('filterJenisKayu', Array.from(jenisKayuSet));
+                    filterCell.appendChild(select);
+                }
+                else if (sortKey === 'biaya') {
+                    // Filter untuk rentang biaya
+                    const filterContainer = document.createElement('div');
+                    filterContainer.className = 'filter-range d-flex';
+                    
+                    const minInput = document.createElement('input');
+                    minInput.type = 'number';
+                    minInput.id = 'filterMinBiaya';
+                    minInput.className = 'form-control form-control-sm';
+                    minInput.placeholder = 'Min';
+                    minInput.addEventListener('input', filterTable);
+                    
+                    const maxInput = document.createElement('input');
+                    maxInput.type = 'number';
+                    maxInput.id = 'filterMaxBiaya';
+                    maxInput.className = 'form-control form-control-sm';
+                    maxInput.placeholder = 'Max';
+                    maxInput.addEventListener('input', filterTable);
+                    
+                    filterContainer.appendChild(minInput);
+                    filterContainer.appendChild(maxInput);
+                    filterCell.appendChild(filterContainer);
+                }
+                
+                filterRow.appendChild(filterCell);
+            });
+            
+            // Tambahkan baris filter setelah header tabel
+            const thead = table.querySelector('thead');
+            thead.appendChild(filterRow);
+        }
+
+        // Fungsi untuk membuat dropdown filter
+        function createFilterSelect(id, options) {
+            const select = document.createElement('select');
+            select.id = id;
+            select.className = 'form-select form-select-sm';
+            
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Semua';
+            select.appendChild(defaultOption);
+            
+            options.forEach(option => {
+                const optElement = document.createElement('option');
+                optElement.value = option.toLowerCase();
+                optElement.textContent = option;
+                select.appendChild(optElement);
+            });
+            
+            select.addEventListener('change', filterTable);
+            return select;
+        }
     </script>
 </body>
 </html> 
