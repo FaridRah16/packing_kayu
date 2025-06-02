@@ -100,6 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
     
+    // Validasi berat minimum
+    if ($berat < 1) {
+        $_SESSION['error'] = "Berat minimum adalah 1kg";
+        header("Location: estimasi.php");
+        exit();
+    }
+    
     // Hitung volume (dalam m³)
     $volume = ($panjang * $lebar * $tinggi) / 1000000; // Konversi cm³ ke m³
     
@@ -318,7 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             
                             <div class="mb-3">
                                 <label for="berat" class="form-label">Berat (kg)</label>
-                                <input type="number" class="form-control" id="berat" name="berat" required>
+                                <input type="number" class="form-control" id="berat" name="berat" min="1" required>
                             </div>
                             
                             <div class="mb-3">

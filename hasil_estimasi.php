@@ -28,6 +28,19 @@ if (!$estimasi) {
     exit();
 }
 
+// Format nomor WhatsApp untuk link WhatsApp API
+$whatsapp_number = $estimasi['nomor_whatsapp'];
+// Hapus karakter non-numerik
+$whatsapp_number = preg_replace('/[^0-9]/', '', $whatsapp_number);
+// Tambahkan kode negara 62 jika dimulai dengan 0
+if (substr($whatsapp_number, 0, 1) === '0') {
+    $whatsapp_number = '62' . substr($whatsapp_number, 1);
+} 
+// Jika tidak dimulai dengan 62, tambahkan 62 di depannya
+else if (substr($whatsapp_number, 0, 2) !== '62') {
+    $whatsapp_number = '62' . $whatsapp_number;
+}
+
 // Ambil harga dimensi yang aktif
 $query = "SELECT * FROM harga_dimensi WHERE is_active = 1 ORDER BY id DESC LIMIT 1";
 $stmt = $db->prepare($query);
@@ -136,6 +149,7 @@ $foto_barang = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <p><strong>Kode Pesanan:</strong> <?php echo $estimasi['kode_pesanan']; ?></p>
                                 <p><strong>Jenis Kayu:</strong> <?php echo $estimasi['jenis_kayu_nama']; ?></p>
                                 <p><strong>Kategori Harga:</strong> <?php echo $estimasi['harga_dimensi_nama'] ?? 'Harga Standar'; ?></p>
+                                <p><strong>Nomor WhatsApp:</strong> <?php echo $estimasi['nomor_whatsapp']; ?></p>
                                 <p><strong>Tanggal:</strong> <?php echo date('d M Y H:i', strtotime($estimasi['created_at'])); ?></p>
                             </div>
                         </div>
@@ -217,9 +231,26 @@ $foto_barang = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <a href="cetak_estimasi.php?id=<?php echo $estimasi_id; ?>" class="btn btn-primary" target="_blank">
                                 <i class="bi bi-printer"></i> Cetak Estimasi
                             </a>
-                            <a href="https://wa.me/6281285233142?text=Halo, saya ingin memesan jasa packing kayu dengan kode pesanan <?php echo $estimasi['kode_pesanan']; ?>" class="btn btn-success" target="_blank">
+                            <a href="https://wa.me/<?php echo $whatsapp_number; ?>?text=Halo, saya ingin memesan jasa packing kayu dengan kode pesanan <?php echo $estimasi['kode_pesanan']; ?>" class="btn btn-success" target="_blank">
                                 <i class="bi bi-whatsapp"></i> Kirim Permintaan via WhatsApp
                             </a>
+                            <?php if(isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'owner', 'staff'])): ?>
+                            <div class="mt-3">
+                                <?php if($_SESSION['role'] === 'admin'): ?>
+                                <a href="admin/dashboard.php" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Kembali ke Dashboard
+                                </a>
+                                <?php elseif($_SESSION['role'] === 'owner'): ?>
+                                <a href="owner/dashboard.php" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Kembali ke Dashboard
+                                </a>
+                                <?php elseif($_SESSION['role'] === 'staff'): ?>
+                                <a href="staff_dashboard.php" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Kembali ke Dashboard
+                                </a>
+                                <?php endif; ?>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
