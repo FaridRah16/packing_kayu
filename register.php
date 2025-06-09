@@ -252,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="card">
             <div class="card-header">
                 <div class="brand-icon">
-                    <i class="bi bi-person-plus"></i>
+                    <img src="assets/images/1831c222-0105-45e9-92b5-d881af635597.png" alt="Logo" height="80">
                 </div>
                 <h3>Buat Akun Baru</h3>
                 <p>Daftarkan diri Anda untuk mulai menggunakan layanan kami</p>

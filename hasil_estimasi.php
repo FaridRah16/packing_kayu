@@ -90,8 +90,8 @@ $foto_barang = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="index.php">
-                <!-- <img src="assets/images/logo.png" alt="Logo" height="40"> -->
-                <span class="fw-bold">Packing Kayu</span>
+                <img src="assets/images/1831c222-0105-45e9-92b5-d881af635597.png" alt="Logo" height="60">
+                <span class="fw-bold">PT.Cahaya Lintang Lestari</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -232,7 +232,7 @@ $foto_barang = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <i class="bi bi-printer"></i> Cetak Estimasi
                             </a>
                             <?php if(!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'owner', 'staff'])): ?>
-                            <a href="https://wa.me/<?php echo $whatsapp_number; ?>?text=Halo, saya ingin memesan jasa packing kayu dengan kode pesanan <?php echo $estimasi['kode_pesanan']; ?>" class="btn btn-success" target="_blank">
+                            <a href="https://wa.me/6287776589518?text=Halo, saya ingin memesan jasa packing kayu dengan kode pesanan <?php echo $estimasi['kode_pesanan']; ?>" class="btn btn-success" target="_blank">
                                 <i class="bi bi-whatsapp"></i> Kirim Permintaan via WhatsApp
                             </a>
                             <?php endif; ?>

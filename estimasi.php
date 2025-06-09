@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container"> 
             <a class="navbar-brand" href="index.php">
-                <!-- <img src="assets/images/logo.png" alt="Logo" height="40"> -->
+                <img src="assets/images/1831c222-0105-45e9-92b5-d881af635597.png" alt="Logo" height="60">
                 <span class="fw-bold">PT. Cahaya Lintang Lestari</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

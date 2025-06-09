@@ -549,12 +549,12 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="estimasi.php">
+                            <a class="nav-link active" href="estimasi.php">
                                 <i class="bi bi-calculator"></i> Order
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="form_estimasi.php">
+                            <a class="nav-link" href="pilihan_estimasi.php">
                                 <i class="bi bi-clipboard-check"></i> Estimasi
                             </a>
                         </li>
@@ -633,7 +633,7 @@ $estimasi_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </form>
                     </div>
                     <div class="col-md-2 text-end">
-                        <a href="form_estimasi.php" class="btn btn-success w-100">
+                        <a href="pilihan_estimasi.php" class="btn btn-success w-100">
                             <i class="bi bi-plus-circle me-1"></i> Buat Estimasi
                         </a>
                     </div>
