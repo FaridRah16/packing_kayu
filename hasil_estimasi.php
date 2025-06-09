@@ -231,9 +231,11 @@ $foto_barang = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <a href="cetak_estimasi.php?id=<?php echo $estimasi_id; ?>" class="btn btn-primary" target="_blank">
                                 <i class="bi bi-printer"></i> Cetak Estimasi
                             </a>
+                            <?php if(!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'owner', 'staff'])): ?>
                             <a href="https://wa.me/<?php echo $whatsapp_number; ?>?text=Halo, saya ingin memesan jasa packing kayu dengan kode pesanan <?php echo $estimasi['kode_pesanan']; ?>" class="btn btn-success" target="_blank">
                                 <i class="bi bi-whatsapp"></i> Kirim Permintaan via WhatsApp
                             </a>
+                            <?php endif; ?>
                             <?php if(isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'owner', 'staff'])): ?>
                             <div class="mt-3">
                                 <?php if($_SESSION['role'] === 'admin'): ?>
